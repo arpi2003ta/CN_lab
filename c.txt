@@ -1,0 +1,1947 @@
+EchoServer.java---
+
+
+import java.io.*; 
+import java.net.*;
+
+class EchoServer
+{
+    public static void main(String argv[]) throws Exception
+    {
+        String clientSentence; String capitalizedSentence;
+        ServerSocket skt= new ServerSocket(6789);
+        System.out.println("Server up and running, listening for connections ");
+        while(true)
+        {
+            Socket connectionSocket = skt.accept();
+            System.out.println("Client connected ");
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
+            DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+            System.out.println("Reading from socket ");
+            clientSentence = inFromClient.readLine();
+            System.out.println("Received and Sending: " + clientSentence);
+            System.out.println("Writing to socket ");
+            capitalizedSentence = clientSentence.toUpperCase() + '\n';
+            outToClient.writeBytes(capitalizedSentence);
+            System.out.println("Message sent ");
+            connectionSocket.close();
+        }
+    }
+}
+
+
+EchoClient.java---
+
+
+import java.io.*;
+import java.net.*;
+
+class EchoClient
+{
+    public static void main(String argv[]) throws Exception
+    {
+        String sentence;
+        String modifiedSentence;
+        Socket clientSocket = new Socket("localhost", 6789);
+        System.out.println("Client running, connected to server ");
+        DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        sentence = "Hi from Client";
+        System.out.println("Writing to socket ");
+        outToServer.writeBytes(sentence + '\n');
+        System.out.println("Reading from socket ");
+        modifiedSentence = inFromServer.readLine();
+        System.out.println("FROM SERVER: " + modifiedSentence);
+        clientSocket.close();
+    }
+}
+
+
+
+PS C:\Users\Arpita Nath\Desktop\j> javac EchoServer.java EchoClient.java      
+PS C:\Users\Arpita Nath\Desktop\j> java EchoServer                      
+Server up and running, listening for connections 
+Client connected 
+Reading from socket
+Received and Sending: Hi from Client
+Writing to socket
+Message sent
+
+
+PS C:\Users\Arpita Nath\Desktop\j> java EchoClient   
+Client running, connected to server 
+Writing to socket
+Reading from socket
+FROM SERVER: HI FROM CLIENT
+PS C:\Users\Arpita Nath\Desktop\j> 
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+TCPConsumerServer.java---
+
+import java.io.*;
+import java.net.*;
+import java.util.LinkedList;
+import java.util.Queue;
+
+public class TCPConsumerServer {
+
+    static class Buffer {
+        private final int[] buffer;
+        private int count = 0;
+        private int in = 0;
+        private int out = 0;
+        private final int capacity;
+
+        Buffer(int capacity) {
+            this.capacity = capacity;
+            this.buffer = new int[capacity];
+        }
+
+        public synchronized void produce(int value) throws InterruptedException {
+            while (count == capacity) {
+                System.out.println("Buffer full. Waiting to insert...");
+                wait();
+            }
+            buffer[in] = value;
+            in = (in + 1) % capacity;
+            count++;
+            System.out.println("Buffered: " + value);
+            notifyAll();
+        }
+
+        public synchronized int consume() throws InterruptedException {
+            while (count == 0) {
+                System.out.println("Buffer empty. Waiting to consume...");
+                wait();
+            }
+            int value = buffer[out];
+            out = (out + 1) % capacity;
+            count--;
+            System.out.println("Consumed: " + value);
+            notifyAll();
+            return value;
+        }
+    }
+
+    public static void main(String[] args) {
+        Buffer buffer = new Buffer(5);
+
+        try {
+            ServerSocket serverSocket = new ServerSocket(5000);
+            System.out.println("Consumer Server started. Waiting for producer...");
+
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Producer connected!");
+
+            DataInputStream inFromClient = new DataInputStream(clientSocket.getInputStream());
+
+            // Thread to receive from producer and buffer it
+            Thread producerThread = new Thread(() -> {
+                while (true) {
+                    try {
+                        int value = inFromClient.readInt();
+                        buffer.produce(value);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+            // Thread to consume from buffer
+            Thread consumerThread = new Thread(() -> {
+                while (true) {
+                    try {
+                        buffer.consume();
+                        Thread.sleep(1000); // Simulate consumption delay
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+            producerThread.start();
+            consumerThread.start();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+TCPProducerClient.java----
+
+import java.io.*;
+import java.net.*;
+
+public class TCPProducerClient {
+    public static void main(String[] args) {
+        try {
+            Socket socket = new Socket("localhost", 5000);
+            DataOutputStream outToServer = new DataOutputStream(socket.getOutputStream());
+
+            int value = 0;
+            while (true) {
+                outToServer.writeInt(value);
+                System.out.println("Produced and sent: " + value);
+                value++;
+                Thread.sleep(500); // Simulate production delay
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+OUTPUT----
+SERVER---
+
+run:
+Consumer Server started. Waiting for producer...
+Producer connected!
+Buffer empty. Waiting to consume...
+Buffered: 0
+Consumed: 0
+Buffered: 1
+Consumed: 1
+Buffered: 2
+Buffered: 3
+Consumed: 2
+Buffered: 4
+Buffered: 5
+Consumed: 3
+
+CLIENT----
+
+run:
+Produced and sent: 0
+Produced and sent: 1
+Produced and sent: 2
+Produced and sent: 3
+Produced and sent: 4
+Produced and sent: 5
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+CountServer2.java---
+
+import java.io.*;
+import java.net.*;
+
+public class CountServer2 {
+    public static void main(String[] args) throws Exception {
+        ServerSocket serverSocket = new ServerSocket(6789);
+        System.out.println("Server is running...");
+
+        while (true) {
+            Socket connectionSocket = serverSocket.accept();
+            System.out.println("Client connected.");
+
+            BufferedReader inFromClient = new BufferedReader(
+                    new InputStreamReader(connectionSocket.getInputStream()));
+            DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+
+            while (true) {
+                String clientSentence = inFromClient.readLine();
+
+                if (clientSentence == null || clientSentence.equalsIgnoreCase("No")) {
+                    System.out.println("Client ended the session.");
+                    break;
+                }
+
+                System.out.println("Received from client: " + clientSentence);
+
+                // Convert to lowercase and count letter frequencies
+                String lowerCaseSentence = clientSentence.toLowerCase();
+                int[] frequencies = new int[26];
+                for (int i = 0; i < lowerCaseSentence.length(); i++) {
+                    char ch = lowerCaseSentence.charAt(i);
+                    if (ch >= 'a' && ch <= 'z') {
+                        frequencies[ch - 'a']++;
+                    }
+                }
+
+                // Find most frequent letter
+                int maxCount = 0;
+                int maxIndex = -1;
+                for (int i = 0; i < 26; i++) {
+                    if (frequencies[i] > maxCount) {
+                        maxCount = frequencies[i];
+                        maxIndex = i;
+                    }
+                }
+
+                String result;
+                if (maxCount == 0) {
+                    result = "No alphabets found in the input.";
+                } else {
+                    char maxLetter = (char) ('a' + maxIndex);
+                    result = "Most frequent letter: " + maxLetter + " (Occurrences: " + maxCount + ")";
+                }
+
+                outToClient.writeBytes(result + "\n");
+                System.out.println("Sent to client: " + result);
+            }
+
+            connectionSocket.close();
+            System.out.println("Connection with client closed.\n");
+        }
+    }
+}
+
+
+CountClient2.java---
+
+import java.io.*;
+import java.net.*;
+
+public class CountClient2 {
+    public static void main(String[] args) throws Exception {
+        Socket clientSocket = new Socket("localhost", 6789);
+        System.out.println("Connected to server.");
+
+        DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
+
+        while (true) {
+            System.out.print("Enter a string (or type 'No' to exit): ");
+            String sentence = userInput.readLine();
+            outToServer.writeBytes(sentence + "\n");
+
+            if (sentence.equalsIgnoreCase("No")) {
+                break;
+            }
+
+            String serverResult = inFromServer.readLine();
+            System.out.println("FROM SERVER: " + serverResult);
+        }
+
+        System.out.println("Disconnected from server.");
+        clientSocket.close();
+    }
+}
+
+OUTPUT---
+SERVER---
+
+run:
+Server is running...
+Client connected.
+Received from client: arpita
+Sent to client: Most frequent letter: a (Occurrences: 2)
+Client ended the session.
+Connection with client closed.
+
+CLIENT---
+
+run:
+Connected to server.
+Enter a string (or type 'No' to exit): arpita
+FROM SERVER: Most frequent letter: a (Occurrences: 2)
+Enter a string (or type 'No' to exit): no
+Disconnected from server.
+BUILD SUCCESSFUL (total time: 19 seconds)
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ConcurrentTimeServer.java---
+
+import java.io.*;
+import java.net.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class ConcurrentTimeServer {
+    public static void main(String[] args) throws IOException {
+        ServerSocket serverSocket = new ServerSocket(6789);
+        System.out.println("Server is running and listening on port 6789...");
+
+        while (true) {
+            
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected from port: " + clientSocket.getPort());
+
+                DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());
+
+                // Get system time
+                LocalDateTime now = LocalDateTime.now();
+                String time = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+                outToClient.writeBytes("Current server time: " + time + "\n");
+
+                clientSocket.close();
+            
+        }
+    }
+}
+
+
+TimeClient.java---
+
+import java.io.*;
+import java.net.*;
+
+public class TimeClient {
+    public static void main(String[] args) throws IOException {
+        Socket socket = new Socket("localhost", 6789);
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+        String serverTime = inFromServer.readLine();
+        System.out.println("Received from server: " + serverTime);
+
+        socket.close();
+    }
+}
+
+OUTPUT---
+SERVER---
+run:
+Server is running and listening on port 6789...
+New client connected from port: 50336
+
+CLIENT---
+run:
+Received from server: Current server time: 2025-04-19 17:21:05
+BUILD SUCCESSFUL (total time: 0 seconds)
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ByteStuffingServer.java--
+
+import java.io.*;
+import java.net.*;
+
+class ByteStuffingServer {
+    public static void main(String[] args) throws Exception {
+        ServerSocket serverSocket = new ServerSocket(6789);
+        System.out.println("Server is running... Waiting for client...");
+        while(true) {
+            
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected!");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String stuffedData = inFromClient.readLine();
+            System.out.println("Received Stuffed Data: " + stuffedData);
+
+            // Perform byte unstuffing
+            String unstuffedData = byteUnstuffing(stuffedData);
+            System.out.println("Original Data After Unstuffing: " + unstuffedData);
+           
+            clientSocket.close();           
+        } 
+    }
+
+    public static String byteUnstuffing(String stuffedData) {
+        StringBuilder result = new StringBuilder();
+        boolean escapeNext = false;
+
+        for (char c : stuffedData.toCharArray()) {
+            if (escapeNext) {
+                result.append(c); // Add the escaped character as it is
+                escapeNext = false;
+            } else if (c == 'E') {
+                escapeNext = true; // Escape detected, next character is stuffed
+            } else {
+                result.append(c); // Normal character
+            }
+        }
+        return result.toString();
+    }
+}
+
+
+ByteStuffingClient.java--
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+class ByteStuffingClient {
+    public static void main(String[] args) {
+        try {
+            Socket clientSocket = new Socket("localhost", 6789);
+            System.out.println("Connected to Server!");
+
+            DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+            Scanner scanner = new Scanner(System.in);
+
+            System.out.print("Enter a sequence of D (Data), E (Escape), F (Flag): ");
+            String inputData = scanner.nextLine();
+
+            // Perform byte stuffing
+            String stuffedData = byteStuffing(inputData);
+            System.out.println("Stuffed Data Sent: " + stuffedData);
+
+            // Send stuffed data
+            outToServer.writeBytes(stuffedData + "\n");
+
+            scanner.close();
+            outToServer.close();
+            clientSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static String byteStuffing(String data) {
+        StringBuilder stuffed = new StringBuilder();
+
+        for (char c : data.toCharArray()) {
+            if (c == 'F' || c == 'E') {
+                stuffed.append("E"); // Add escape before special characters
+            }
+            stuffed.append(c); // Add actual character
+        }
+
+        return stuffed.toString();
+    }
+}
+
+OUTPUT---
+SERVER---
+
+run:
+Server is running... Waiting for client...
+Client connected!
+Received Stuffed Data: DDEEEF
+Original Data After Unstuffing: DDEF
+
+CLIENT---
+run:
+Connected to Server!
+Enter a sequence of D (Data), E (Escape), F (Flag): DDEF
+Stuffed Data Sent: DDEEEF
+BUILD SUCCESSFUL (total time: 4 seconds)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+ByteStuffingServerUDP.java---
+
+import java.io.IOException;  
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+class ByteStuffingServerUDP {
+    public static void main(String argv[]) throws Exception {
+        DatagramSocket serverSocket = new DatagramSocket(6789);
+        System.out.println("UDP Math Server is running on port 6789...");
+
+        while (true){
+            
+            byte[] receiveBuffer = new byte[1024]; // Clear buffer
+            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            serverSocket.receive(receivePacket);
+            String stuffedData = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println("Received Stuffed Data: " + stuffedData);
+
+            // Perform byte unstuffing
+            String unstuffedData = byteUnstuffing(stuffedData);
+            System.out.println("Original Data After Unstuffing: " + unstuffedData);
+           
+        } 
+    }
+
+    public static String byteUnstuffing(String stuffedData) {
+        StringBuilder result = new StringBuilder();
+        boolean escapeNext = false;
+
+        for (char c : stuffedData.toCharArray()) {
+            if (escapeNext) {
+                result.append(c); // Add the escaped character as it is
+                escapeNext = false;
+            } else if (c == 'E') {
+                escapeNext = true; // Escape detected, next character is stuffed
+            } else {
+                result.append(c); // Normal character
+            }
+        }
+        return result.toString();
+    }
+}
+
+
+ByteStuffingClientUDP.java---
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Scanner;
+
+class ByteStuffingClientUDP {
+    public static void main(String argv[]) throws Exception { 
+       
+            DatagramSocket clientSocket = new DatagramSocket();
+            InetAddress serverAddress = InetAddress.getByName("localhost");
+
+            Scanner scanner = new Scanner(System.in);
+
+            System.out.print("Enter a sequence of D (Data), E (Escape), F (Flag): ");
+            String inputData = scanner.nextLine();
+
+            // Perform byte stuffing
+            String stuffedData = byteStuffing(inputData);
+            System.out.println("Stuffed Data Sent: " + stuffedData);
+
+            // Send stuffed data
+            byte[] sendBuffer = stuffedData.getBytes();
+            DatagramPacket sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+            clientSocket.send(sendPacket);
+
+
+            scanner.close();
+            
+            clientSocket.close();
+        
+    }
+
+    public static String byteStuffing(String data) {
+        StringBuilder stuffed = new StringBuilder();
+
+        for (char c : data.toCharArray()) {
+            if (c == 'F' || c == 'E') {
+                stuffed.append("E"); // Add escape before special characters
+            }
+            stuffed.append(c); // Add actual character
+        }
+
+        return stuffed.toString();
+    }
+}
+
+OUTPUT---
+SERVER--
+
+run:
+UDP Math Server is running on port 6789...
+Received Stuffed Data: DDEEEF
+Original Data After Unstuffing: DDEF
+
+CLIENT---
+run:
+Enter a sequence of D (Data), E (Escape), F (Flag): DDEF
+Stuffed Data Sent: DDEEEF
+BUILD SUCCESSFUL (total time: 5 seconds)
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+UDPchatbotserver.java---
+
+import java.io.IOException;  
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Scanner;
+
+public class UDPchatbotserver {
+
+   public static void main(String argv[]) throws Exception { 
+        DatagramSocket serverSocket = new DatagramSocket(6789);
+        System.out.println("UDP Math Server is running on port 6789...");
+
+        byte[] receiveBuffer = new byte[1024];
+        byte[] sendBuffer;    
+        DatagramPacket sendPacket; 
+        
+        while (true) {  
+            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            serverSocket.receive(receivePacket);
+            InetAddress clientAddress = receivePacket.getAddress();
+            int clientPort = receivePacket.getPort();
+            
+           
+
+            while (true) {
+                
+                receiveBuffer = new byte[1024]; // Clear buffer
+                receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                serverSocket.receive(receivePacket);
+                String client_msg = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                System.out.println("from client msg: "+client_msg);
+                
+                if(client_msg.equalsIgnoreCase("exit"))
+                {
+                    System.out.print("client disconnects ");
+                    break;
+                }
+                
+                Scanner scanner = new Scanner(System.in);
+                System.out.print("Enter msg: ");
+                String msg = scanner.nextLine();
+                sendBuffer = msg.getBytes();
+                sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                serverSocket.send(sendPacket);
+
+            }
+        }
+   }
+
+}
+
+
+UDPchatbotclient.java---
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Scanner;
+
+public class UDPchatbotclient {
+
+    public static void main(String argv[]) throws Exception { 
+        DatagramSocket clientSocket = new DatagramSocket();
+        InetAddress serverAddress = InetAddress.getByName("localhost");
+        Scanner scanner = new Scanner(System.in);
+
+        byte[] receiveBuffer = new byte[1024];
+        byte[] sendBuffer;
+        DatagramPacket sendPacket;
+        DatagramPacket receivePacket; 
+        
+        // Send initial request to trigger server response
+        sendBuffer = "Hello Server".getBytes();
+        sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+        clientSocket.send(sendPacket);
+
+        while (true) { 
+            
+            
+            System.out.print("Enter msg: ");
+            String msg = scanner.nextLine();
+            sendBuffer = msg.getBytes();
+            sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+            clientSocket.send(sendPacket);
+            
+            if(msg.equalsIgnoreCase("exit"))
+            {
+                System.out.print("client disconnects ");
+                break;
+            }
+            
+            receiveBuffer = new byte[1024]; // Clear buffer
+            receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            clientSocket.receive(receivePacket);
+            String server_msg = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println("from server msg: "+server_msg);
+        }
+        clientSocket.close();
+        scanner.close();
+    }
+    
+}
+
+OUTPUT---
+SERVER---
+
+run:
+UDP Math Server is running on port 6789...
+from client msg: arpita
+Enter msg: nath
+from client msg: exit
+client disconnects 
+
+CLIENT---
+
+run:
+Enter msg: arpita
+from server msg: nath
+Enter msg: exit
+client disconnects BUILD SUCCESSFUL (total time: 23 seconds)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+TCPchatbotserver.java---
+
+import java.io.*; 
+import java.net.*; 
+import java.util.Scanner;
+
+public class TCPchatbotserver {
+
+    public static void main(String argv[]) throws Exception { 
+        ServerSocket skt = new ServerSocket(6789); 
+        System.out.println("Server up and running, listening for connections ");
+
+        while (true) { 
+            Socket connectionSocket = skt.accept(); 
+            System.out.println("Client connected ");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+            DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+
+            while (true) { 
+                
+                String client_msg = inFromClient.readLine();
+                System.out.println("from client msg: "+client_msg + "\n");
+                
+                if(client_msg.equalsIgnoreCase("exit"))
+                {
+                    System.out.print("client disconnects ");
+                    break;
+                }
+                
+                Scanner scanner = new Scanner(System.in);
+                System.out.print("Enter msg: ");
+                String msg = scanner.nextLine();
+                outToClient.writeBytes(msg + "\n");
+            }
+            connectionSocket.close();
+            System.out.println("Client disconnected.\n");
+        }      
+    }
+}
+
+TCPchatbotclient.java---
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class TCPchatbotclient {
+
+     public static void main(String argv[]) throws Exception { 
+        Socket clientSocket = new Socket("localhost", 6789); 
+        System.out.println("Client running, connected to server");
+
+        DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream()); 
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); 
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) { 
+            
+            
+            System.out.print("Enter msg: ");
+            String msg = scanner.nextLine();
+            outToServer.writeBytes(msg + '\n');
+            
+            if(msg.equalsIgnoreCase("exit"))
+            {
+                System.out.print("client disconnects ");
+                break;
+            }
+            
+            String server_msg = inFromServer.readLine();
+            System.out.println("from server msg: "+server_msg);
+        }
+        clientSocket.close();
+        scanner.close();
+     }
+    
+}
+
+OUTPUT---
+SERVER---
+run:
+Server up and running, listening for connections 
+Client connected 
+from client msg: arpita
+
+Enter msg: nath
+from client msg: Exit
+
+client disconnects Client disconnected.
+
+
+CLIENT---
+
+run:
+Client running, connected to server
+Enter msg: arpita
+from server msg: nath
+Enter msg: Exit
+client disconnects BUILD SUCCESSFUL (total time: 26 seconds)
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+TCPchatbotserver2.java---
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class TCPchatbotserver2 {
+
+    public static void main(String[] args) throws Exception {
+        ServerSocket serverSocket = new ServerSocket(6789);
+        System.out.println("Server up and running, listening for connections...");
+
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected");
+
+            ReadThreadServer readThread = new ReadThreadServer(clientSocket);
+            WriteThreadServer writeThread = new WriteThreadServer(clientSocket);
+
+            readThread.start();
+            writeThread.start();
+        }
+    }
+}
+
+class ReadThreadServer extends Thread {
+    private Socket socket;
+    private BufferedReader in;
+
+    public ReadThreadServer(Socket socket) throws IOException {
+        this.socket = socket;
+        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    }
+
+    public void run() {
+        try {
+            String msg;
+            while ((msg = in.readLine()) != null) {
+                System.out.println("from client msg: " + msg + "\n");
+                if (msg.equalsIgnoreCase("exit")) {
+                    System.out.print("client disconnects ");
+                    socket.close();
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Client disconnected.");
+        }
+    }
+}
+
+class WriteThreadServer extends Thread {
+    private Socket socket;
+    private DataOutputStream out;
+    private Scanner scanner;
+
+    public WriteThreadServer(Socket socket) throws IOException {
+        this.socket = socket;
+        out = new DataOutputStream(socket.getOutputStream());
+        scanner = new Scanner(System.in);
+    }
+
+    public void run() {
+        try {
+            while (!socket.isClosed()) {
+                System.out.print("Enter msg: ");
+                String msg = scanner.nextLine();
+                out.writeBytes(msg + "\n");
+            }
+        } catch (IOException e) {
+            System.out.println("Write thread closed.");
+        }
+    }
+}
+
+
+TCPchatbotclient2.java---
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class TCPchatbotclient2 {
+
+    public static void main(String[] args) throws Exception {
+        Socket socket = new Socket("localhost", 6789);
+        System.out.println("Client running, connected to server");
+
+        ReadThreadClient readThread = new ReadThreadClient(socket);
+        WriteThreadClient writeThread = new WriteThreadClient(socket);
+
+        readThread.start();
+        writeThread.start();
+    }
+}
+
+class ReadThreadClient extends Thread {
+    private Socket socket;
+    private BufferedReader in;
+
+    public ReadThreadClient(Socket socket) throws IOException {
+        this.socket = socket;
+        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    }
+
+    public void run() {
+        try {
+            String msg;
+            while ((msg = in.readLine()) != null) {
+                System.out.println("from server msg: " + msg);
+            }
+        } catch (IOException e) {
+            System.out.println("Server disconnected.");
+        }
+    }
+}
+
+class WriteThreadClient extends Thread {
+    private Socket socket;
+    private DataOutputStream out;
+    private Scanner scanner;
+
+    public WriteThreadClient(Socket socket) throws IOException {
+        this.socket = socket;
+        out = new DataOutputStream(socket.getOutputStream());
+        scanner = new Scanner(System.in);
+    }
+
+    public void run() {
+        try {
+            while (!socket.isClosed()) {
+                System.out.print("Enter msg: ");
+                String msg = scanner.nextLine();
+                out.writeBytes(msg + "\n");
+
+                if (msg.equalsIgnoreCase("exit")) {
+                    System.out.print("client disconnects ");
+                    socket.close();
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Write thread closed.");
+        }
+    }
+}
+
+OUTPUT---
+SERVER---
+run:
+Server up and running, listening for connections...
+Client connected
+Enter msg: from client msg: aa
+
+from client msg: aa
+
+aa
+Enter msg: from client msg: exit
+
+client disconnects
+
+
+CLIENT---
+run:
+Client running, connected to server
+Enter msg: aa
+Enter msg: aa
+Enter msg: from server msg: aa
+exit
+client disconnects Server disconnected.
+BUILD SUCCESSFUL (total time: 18 seconds)
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+MS2.java---
+
+import java.io.IOException;  
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+class MS2 { 
+    public static void main(String argv[]) throws Exception { 
+        DatagramSocket serverSocket = new DatagramSocket(6789);
+        System.out.println("UDP Math Server is running on port 6789...");
+
+        byte[] receiveBuffer = new byte[1024];
+        byte[] sendBuffer;    
+        DatagramPacket sendPacket; 
+        
+        while (true) {  
+            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            serverSocket.receive(receivePacket);
+            InetAddress clientAddress = receivePacket.getAddress();
+            int clientPort = receivePacket.getPort();
+            
+           
+
+            while (true) {
+
+                // Send menu after receiving initial request
+                sendBuffer = "Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.\n".getBytes();
+                sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                serverSocket.send(sendPacket);
+
+                System.out.println("Waiting for client choice...");
+                receiveBuffer = new byte[1024]; // Clear buffer
+                receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                serverSocket.receive(receivePacket);
+                String choiceStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
+
+                int choice;
+                try {
+                    choice = Integer.parseInt(choiceStr);
+                } catch (NumberFormatException e) {
+                    sendBuffer = "Invalid input. Please enter a number.\n".getBytes();
+                    sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                    serverSocket.send(sendPacket);
+                    continue;
+                }
+
+                // Exit condition
+                if (choice == 4) {
+                    System.out.println("Client exited.");
+                    break;  // Instead of terminating, just break out of the inner loop
+                }
+
+                // Check if choice is valid
+                if (choice < 1 || choice > 3) {
+                    sendBuffer = "Invalid choice. Try again.\n".getBytes();
+                    sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                    serverSocket.send(sendPacket);
+                    continue;
+                }
+
+                // Ask for operands
+                sendBuffer = "Enter operands (separated by space):\n".getBytes();
+                sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                serverSocket.send(sendPacket);
+                System.out.println("Waiting for operands...");
+
+                receiveBuffer = new byte[1024]; // Clear buffer
+                receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                serverSocket.receive(receivePacket);
+                String operandStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
+
+                String[] operands = operandStr.split(" ");
+
+                if (operands.length < 2) {
+                    sendBuffer = "Error: Enter at least two numbers.\n".getBytes();
+                    sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                    serverSocket.send(sendPacket);
+                    continue;
+                }
+
+                double result;
+                try {
+                    result = Double.parseDouble(operands[0]); // Initialize with first operand
+                    
+                    // Process based on operation
+                    switch (choice) {
+                        case 1: // Addition
+                            for (int i = 1; i < operands.length; i++) {
+                                result += Double.parseDouble(operands[i]);
+                            }
+                            break;
+                        case 2: // Subtraction
+                            for (int i = 1; i < operands.length; i++) {
+                                result -= Double.parseDouble(operands[i]);
+                            }
+                            break;
+                        case 3: // Multiplication
+                            for (int i = 1; i < operands.length; i++) {
+                                result *= Double.parseDouble(operands[i]);
+                            }
+                            break;
+                    }
+                } catch (NumberFormatException e) {
+                    sendBuffer = "Error: Invalid number format.\n".getBytes();
+                    sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                    serverSocket.send(sendPacket);
+                    continue;
+                }
+
+                // Send result to client
+                System.out.println("Computed Result: " + result);
+                String resultMessage = "Result: " + result;
+                        
+                sendBuffer = resultMessage.getBytes();
+                sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+                serverSocket.send(sendPacket);
+            }
+        }
+    }
+}
+
+
+MC2.java---
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Scanner;
+
+class MC2 { 
+    public static void main(String argv[]) throws Exception { 
+        DatagramSocket clientSocket = new DatagramSocket();
+        InetAddress serverAddress = InetAddress.getByName("localhost");
+        Scanner scanner = new Scanner(System.in);
+
+        byte[] receiveBuffer = new byte[1024];
+        byte[] sendBuffer;
+        DatagramPacket sendPacket;
+        DatagramPacket receivePacket; 
+
+        // Send initial request to trigger server response
+        sendBuffer = "Hello Server".getBytes();
+        sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+        clientSocket.send(sendPacket);
+
+        while (true) { 
+            // Read menu from server
+            receiveBuffer = new byte[1024]; // Clear buffer
+            receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            clientSocket.receive(receivePacket);
+            String menu = new String(receivePacket.getData(), 0, receivePacket.getLength());
+
+            System.out.println(menu);
+
+            // Get user choice
+            System.out.print("Enter choice: ");
+            String choice = scanner.nextLine();
+            sendBuffer = choice.getBytes();
+            sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+            clientSocket.send(sendPacket);
+
+            // Exit condition
+            if (choice.equals("4")) {
+                System.out.println("Exiting client...");
+                break;
+            }
+
+            // Read server response for operands
+            receiveBuffer = new byte[1024]; // Clear buffer
+            receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            clientSocket.receive(receivePacket);
+            String prompt = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println(prompt);
+
+            // Get operands
+            //System.out.print("Enter operands (separated by space): ");
+            String operands = scanner.nextLine();
+            sendBuffer = operands.getBytes();
+            sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+            clientSocket.send(sendPacket);
+
+            // Read result from server
+            receiveBuffer = new byte[1024]; // Clear buffer
+            receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            clientSocket.receive(receivePacket);
+            String result = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println(result);
+        }
+
+        clientSocket.close();
+        scanner.close();
+    }
+}
+
+
+OUTPUT--
+SERVER--
+
+PS C:\Users\Arpita Nath\Desktop\j> javac MS2.java MC2.java
+PS C:\Users\Arpita Nath\Desktop\j> java MS2
+UDP Math Server is running on port 6789...
+Waiting for client choice...
+Waiting for operands...
+Computed Result: 3.0
+Waiting for client choice...
+Waiting for operands...
+Computed Result: -1.0
+Waiting for client choice...
+Waiting for operands...
+Computed Result: 2.0
+Waiting for client choice...
+Client exited.
+
+
+CLIENT---
+
+PS C:\Users\Arpita Nath\Desktop\j> java MC2
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+
+Enter choice: 1
+Enter operands (separated by space):
+
+1 1 1
+Result: 3.0
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+
+Enter choice: 2
+Enter operands (separated by space):
+
+1 1 1
+Result: -1.0
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+
+Enter choice: 3
+Enter operands (separated by space):
+
+1 2 1
+Result: 2.0
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+
+Enter choice: 4
+Exiting client...
+PS C:\Users\Arpita Nath\Desktop\j> 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+import java.io.*;
+import java.net.*;
+
+public class ParityReceiverServer {
+    public static void main(String[] args) throws IOException {
+        int port = 6789;
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Server is running on port " + port);
+
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected...");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String receivedData = inFromClient.readLine();
+            
+            if (receivedData == null) continue;
+
+            System.out.println("Received Data with Parity: " + receivedData);
+
+            // Check parity
+            int count = 0;
+            for (char bit : receivedData.toCharArray()) {
+                if (bit == '1') count++;
+            }
+
+            if (count % 2 == 0) {
+                System.out.println(" Data is UNCORRUPTED");
+            } else {
+                System.out.println(" Data is CORRUPTED");
+            }
+
+            // Close client socket
+            clientSocket.close();
+        }
+    }
+}
+
+
+
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class ParitySenderClient {
+    public static void main(String[] args) throws IOException {
+        String serverIP = "localhost"; 
+        int serverPort = 6789;
+
+        Socket socket = new Socket(serverIP, serverPort);
+        System.out.println("Connected to server on port " + serverPort);
+
+        DataOutputStream outToServer = new DataOutputStream(socket.getOutputStream());
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.print("Enter binary data: ");
+        String data = scanner.nextLine();
+
+        // Compute even parity bit
+        int count = 0;
+        for (char bit : data.toCharArray()) {
+            if (bit == '1') count++;
+        }
+        String parityBit = (count % 2 == 0) ? "0" : "1";  // Append parity bit
+
+        String dataWithParity = data + parityBit;
+        System.out.println("Data Sent with Parity: " + dataWithParity);
+
+        // Send data to receiver
+        outToServer.writeBytes(dataWithParity + "\n");
+
+        // Close connections
+        scanner.close();
+        outToServer.close();
+        socket.close();
+    }
+}
+
+
+
+
+
+PS C:\Users\Arpita Nath\Desktop\j> javac ParityReceiverServer.java ParitySenderClient.java
+PS C:\Users\Arpita Nath\Desktop\j> java ParityReceiverServer
+Server is running on port 6789
+Client connected...
+Received Data with Parity: 11011
+ Data is UNCORRUPTED
+Client connected...
+Received Data with Parity: 1010110
+ Data is UNCORRUPTED
+
+
+
+PS C:\Users\Arpita Nath\Desktop\j> java ParitySenderClient
+Connected to server on port 6789
+Enter binary data: 101011
+Data Sent with Parity: 1010110
+
+-------------------------------------------------------------------------------------------------------------------
+
+import java.io.*;
+import java.net.*;
+
+public class ParityReceiverS {
+    public static void main(String[] args) throws IOException {
+        int port = 6789;
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Server is running on port " + port);
+
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected...");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String receivedData = inFromClient.readLine();
+            
+            if (receivedData == null) continue;
+
+            System.out.println("Received Data with Parity: " + receivedData);
+
+            // Check parity
+            int count = 0;
+            for (char bit : receivedData.toCharArray()) {
+                if (bit == '1') count++;
+            }
+
+            if (count % 2 == 0) {
+                System.out.println(" Data is UNCORRUPTED");
+            } else {
+                System.out.println(" Data is CORRUPTED");
+            }
+
+            // Close client socket
+            clientSocket.close();
+        }
+    }
+}
+
+
+
+
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class ParitySenderC {
+    public static void main(String[] args) throws IOException {
+        String serverIP = "localhost"; 
+        int serverPort = 6789;
+
+        Socket socket = new Socket(serverIP, serverPort);
+        System.out.println("Connected to server on port " + serverPort);
+
+        DataOutputStream outToServer = new DataOutputStream(socket.getOutputStream());
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.print("Enter binary data: ");
+        String data = scanner.nextLine();
+
+        // Append '1' to force corruption
+        String dataWithParity = data + "1";
+        System.out.println("Data Sent with Parity: " + dataWithParity);
+
+        // Send data to receiver
+        outToServer.writeBytes(dataWithParity + "\n");
+
+        // Close connections
+        scanner.close();
+        outToServer.close();
+        socket.close();
+    }
+}
+
+
+
+PS C:\Users\Arpita Nath\Desktop\j> javac ParityReceiverS.java ParitySenderC.java          
+PS C:\Users\Arpita Nath\Desktop\j> java ParityReceiverS                         
+Server is running on port 6789
+Client connected...
+Received Data with Parity: 10101
+ Data is CORRUPTED
+PS C:\Users\Arpita Nath\Desktop\j> 
+
+
+PS C:\Users\Arpita Nath\Desktop\j> java ParitySenderC                             
+Connected to server on port 6789
+Enter binary data: 1010
+Data Sent with Parity: 10101
+PS C:\Users\Arpita Nath\Desktop\j> 
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+MathServer.java---
+
+
+import java.io.*; 
+import java.net.*;  
+
+class MathServer { 
+    public static void main(String argv[]) throws Exception { 
+        ServerSocket skt = new ServerSocket(6789); 
+        System.out.println("Server up and running, listening for connections ");
+
+        while (true) { 
+            Socket connectionSocket = skt.accept(); 
+            System.out.println("Client connected ");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+            DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+
+            while (true) {  
+                // Send menu
+                outToClient.writeBytes("Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.\n");
+                System.out.println("Waiting for client choice...");
+                
+                String choiceStr = inFromClient.readLine();
+                int choice;
+
+                try {
+                    choice = Integer.parseInt(choiceStr);
+                } catch (NumberFormatException e) {
+                    outToClient.writeBytes("Invalid input. Please enter a number.\n");
+                    continue;
+                }
+
+                // Exit condition
+                if (choice == 4) {
+                    System.out.println("Client exited.");
+                    break;
+                }
+
+                // Check if choice is valid
+                if (choice < 1 || choice > 3) {
+                    outToClient.writeBytes("Invalid choice. Try again.\n");
+                    continue;
+                }
+
+                // Ask for operands
+                outToClient.writeBytes("Enter operands (separated by space):\n");
+                System.out.println("Waiting for operands...");
+
+                String operandStr = inFromClient.readLine();
+                String[] operands = operandStr.split(" ");
+
+                if (operands.length < 2) {
+                    outToClient.writeBytes("Error: Enter at least two numbers.\n");
+                    continue;
+                }
+
+                double result;
+                try {
+                    result = Double.parseDouble(operands[0]); // Initialize with first operand
+                    
+                    // Process based on operation
+                    switch (choice) {
+                        case 1: // Addition
+                            for (int i = 1; i < operands.length; i++) {
+                                result += Double.parseDouble(operands[i]);
+                            }
+                            break;
+                        case 2: // Subtraction
+                            for (int i = 1; i < operands.length; i++) {
+                                result -= Double.parseDouble(operands[i]);
+                            }
+                            break;
+                        case 3: // Multiplication
+                            for (int i = 1; i < operands.length; i++) {
+                                result *= Double.parseDouble(operands[i]);
+                            }
+                            break;
+                    }
+                } catch (NumberFormatException e) {
+                    outToClient.writeBytes("Error: Invalid number format.\n");
+                    continue;
+                }
+
+                // Send result to client
+                System.out.println("Computed Result: " + result);
+                outToClient.writeBytes("Result: " + result + "\n");
+            }
+
+            // Close client connection (server keeps running)
+            connectionSocket.close();
+            System.out.println("Client disconnected.\n");
+        }
+    }
+}
+
+
+
+
+
+MathClient.java--
+
+
+import java.io.*; 
+import java.net.*;  
+import java.util.Scanner; 
+
+class MathClient { 
+    public static void main(String argv[]) throws Exception { 
+        Socket clientSocket = new Socket("localhost", 6789); 
+        System.out.println("Client running, connected to server");
+
+        DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream()); 
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); 
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) { 
+            // Read menu from server
+            System.out.println("Reading from server...");
+            String menu = inFromServer.readLine();
+            System.out.println(menu);
+
+            // Get user choice
+            System.out.print("Enter choice: ");
+            String choice = scanner.nextLine();
+            System.out.println("Writing to socket...");
+            outToServer.writeBytes(choice + '\n');
+
+            // Exit condition
+            if (choice.equals("4")) {
+                System.out.println("Exiting client...");
+                break;
+            }
+
+            // Read server response for operands
+            System.out.println("Reading from server...");
+            String prompt = inFromServer.readLine();
+            System.out.println(prompt);
+
+            // Get operands
+            //System.out.print("Enter operands (separated by space): ");
+            String operands = scanner.nextLine();
+            System.out.println("Writing to socket...");
+            outToServer.writeBytes(operands + '\n');
+
+            // Read result from server
+            System.out.println("Reading from server...");
+            String result = inFromServer.readLine();
+            System.out.println(result);
+        }
+
+        clientSocket.close();
+        scanner.close();
+    }
+}
+
+
+OUTPUT--
+SERVER--
+
+run:
+Server up and running, listening for connections 
+Client connected 
+Waiting for client choice...
+Waiting for operands...
+Computed Result: 4.0
+Waiting for client choice...
+Waiting for operands...
+Computed Result: 0.0
+Waiting for client choice...
+Waiting for operands...
+Computed Result: 2.0
+Waiting for client choice...
+Client exited.
+Client disconnected.
+
+
+CLIENT--
+
+run:
+Client running, connected to server
+Reading from server...
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+Enter choice: 1
+Writing to socket...
+Reading from server...
+Enter operands (separated by space):
+1 2 1
+Writing to socket...
+Reading from server...
+Result: 4.0
+Reading from server...
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+Enter choice: 2
+Writing to socket...
+Reading from server...
+Enter operands (separated by space):
+2 1 1
+Writing to socket...
+Reading from server...
+Result: 0.0
+Reading from server...
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+Enter choice: 3
+Writing to socket...
+Reading from server...
+Enter operands (separated by space):
+1 1 2
+Writing to socket...
+Reading from server...
+Result: 2.0
+Reading from server...
+Select 1 to add, 2 to subtract, 3 to multiply, 4 to exit.
+Enter choice: 4
+Writing to socket...
+Exiting client...
+BUILD SUCCESSFUL (total time: 47 seconds)
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+BitStuffingServer.java---
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+class BitStuffingServer {
+    public static void main(String argv[]) throws Exception {
+        DatagramSocket serverSocket = new DatagramSocket(6789);
+        System.out.println("UDP Bit Stuffing Server is running on port 6789...\n");
+
+        byte[] receiveBuffer = new byte[1024];
+        byte[] sendBuffer;
+        DatagramPacket sendPacket;
+
+        while (true) {
+            // Receive message from client
+            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            serverSocket.receive(receivePacket);
+            InetAddress clientAddress = receivePacket.getAddress();
+            int clientPort = receivePacket.getPort();
+            
+            String data = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println("Received Data: " + data);
+
+            // Perform bit stuffing
+            String stuffedData = bitStuff(data);
+            System.out.println("Bit-Stuffed Data: " + stuffedData);
+
+            // Perform bit unstuffing
+            String unstuffedData = bitUnstuff(stuffedData);
+            System.out.println("Bit-Unstuffed Data: " + unstuffedData);
+
+            // Send stuffed data back to client
+            sendBuffer = stuffedData.getBytes();
+            sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, clientAddress, clientPort);
+            serverSocket.send(sendPacket);
+        }
+    }
+
+    // Method to perform bit stuffing
+    public static String bitStuff(String data) {
+        StringBuilder stuffedData = new StringBuilder("01111110"); // Start flag byte
+        int count = 0;
+
+        for (int i = 0; i < data.length(); i++) {
+            if (data.charAt(i) == '1') {
+                count++;
+                stuffedData.append("1");
+                if (count == 5) {
+                    stuffedData.append("0"); // Stuff a '0' after five consecutive '1's
+                    count = 0;
+                }
+            } else {
+                stuffedData.append("0");
+                count = 0;
+            }
+        }
+        stuffedData.append("01111110"); // End flag byte
+        return stuffedData.toString();
+    }
+
+    // Method to perform bit unstuffing
+    public static String bitUnstuff(String data) {
+        StringBuilder unstuffedData = new StringBuilder();
+        int count = 0;
+
+        // Remove flag bytes first
+        String actualData = data.substring(8, data.length() - 8);
+
+        for (int i = 0; i < actualData.length(); i++) {
+            if (actualData.charAt(i) == '1') {
+                count++;
+                unstuffedData.append("1");
+                if (count == 5 && i + 1 < actualData.length() && actualData.charAt(i + 1) == '0') {
+                    i++; // Skip the stuffed '0'
+                    count = 0;
+                }
+            } else {
+                unstuffedData.append("0");
+                count = 0;
+            }
+        }
+        return unstuffedData.toString();
+    }
+}
+
+
+BitStuffingClient.java---
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Scanner;
+
+class BitStuffingClient {
+    public static void main(String[] args) throws Exception {
+        DatagramSocket clientSocket = new DatagramSocket();
+        InetAddress serverAddress = InetAddress.getByName("localhost");
+        Scanner scanner = new Scanner(System.in);
+        
+        System.out.print("Enter binary data: ");
+        String data = scanner.nextLine();
+        scanner.close();
+
+        // Send data to server
+        byte[] sendBuffer = data.getBytes();
+        DatagramPacket sendPacket = new DatagramPacket(sendBuffer, sendBuffer.length, serverAddress, 6789);
+        clientSocket.send(sendPacket);
+
+        // Receive stuffed data from server
+        byte[] receiveBuffer = new byte[1024];
+        DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+        clientSocket.receive(receivePacket);
+        String stuffedData = new String(receivePacket.getData(), 0, receivePacket.getLength());
+
+        System.out.println("Received Bit-Stuffed Data: " + stuffedData);
+
+        clientSocket.close();
+    }
+}
+
+
+OUTPUT---
+SERVER--
+
+PS C:\Users\Arpita Nath\Desktop\j> javac BitStuffingServer.java BitStuffingClient.java
+PS C:\Users\Arpita Nath\Desktop\j> java BitStuffingServer
+UDP Bit Stuffing Server is running on port 6789...
+
+Received Data: 01001111110111111
+Bit-Stuffed Data: 01111110010011111010111110101111110
+Bit-Unstuffed Data: 01001111110111111
+PS C:\Users\Arpita Nath\Desktop\j> 
+
+CLIENT---
+
+PS C:\Users\Arpita Nath\Desktop\j>  java BitStuffingClient
+Enter binary data: 01001111110111111
+Received Bit-Stuffed Data: 01111110010011111010111110101111110
+PS C:\Users\Arpita Nath\Desktop\j> 
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+ParityReceiverServerstop.java---
+
+import java.io.*;
+import java.net.*;
+
+public class ParityReceiverServerstop {
+    public static void main(String[] args) throws IOException {
+        int port = 6789;
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Server is running on port " + port);
+
+        while (true) { // Keeps the server running
+            
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected...");
+
+            BufferedReader inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());
+
+            int expectedSeq = 0; // Expected sequence number
+
+            String receivedData = inFromClient.readLine();
+            if (receivedData == null) continue;
+            System.out.println("Received Data: " + receivedData);
+
+            int receivedSeq = receivedData.charAt(0) - '0';  // Extract sequence number
+            String data = receivedData.substring(1, receivedData.length() - 1); // Extract actual data
+            int receivedParity = receivedData.charAt(receivedData.length() - 1) - '0'; // Extract parity bit
+
+            // Compute parity check
+            int count = 0;
+            for (char bit : data.toCharArray()) {
+                if (bit == '1') count++;
+            }
+            int computedParity = (count % 2 == 0) ? 0 : 1;
+
+            if (receivedSeq == expectedSeq && computedParity == receivedParity) {
+                System.out.println("Data is correct. Sending ACK.");
+                outToClient.writeBytes(expectedSeq + "ACK\n");
+                expectedSeq = 1 - expectedSeq; // Toggle expected sequence number
+            } else {
+                System.out.println("Incorrect data! Ignoring frame.");
+            }
+            
+            clientSocket.close(); // Close connection after processing the message
+        }
+    }
+}
+
+
+ParitySenderClientstop.java---
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class ParitySenderClientstop {
+    public static void main(String[] args) throws IOException {
+        String serverIP = "localhost"; 
+        int serverPort = 6789;
+
+        Socket socket = new Socket(serverIP, serverPort);
+        System.out.println("Connected to server on port " + serverPort);
+
+        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        DataOutputStream outToServer = new DataOutputStream(socket.getOutputStream());
+        Scanner scanner = new Scanner(System.in);
+
+        int seq = 0; // Sequence number alternates between 0 and 1
+
+        
+            System.out.print("Enter binary data: ");
+            String data = scanner.nextLine();
+
+            // Compute even parity bit
+            int count = 0;
+            for (char bit : data.toCharArray()) {
+                if (bit == '1') count++;
+            }
+            String parityBit = (count % 2 == 0) ? "0" : "1";  // Append parity bit
+
+            String dataWithParity = seq + data + parityBit; // Add sequence number and parity
+            System.out.println("Sending Data with Parity: " + dataWithParity);
+
+            boolean ackReceived = false;
+            
+            while (!ackReceived) {
+                outToServer.writeBytes(dataWithParity + "\n"); // Send data
+
+                try {
+                    socket.setSoTimeout(2000);  // 2 seconds timeout for ACK
+                    String response = inFromServer.readLine();
+                    
+                    if (response != null && response.equals(seq + "ACK")) {
+                        System.out.println("ACK received for sequence: " + seq);
+                        seq = 1 - seq;  // Toggle sequence number
+                        ackReceived = true;
+                    }
+                } catch (SocketTimeoutException e) {
+                    System.out.println("Timeout! Retransmitting...");
+                }
+            }
+        
+    }
+}
+
+
+PS C:\Users\Arpita Nath\Desktop\j> javac ParityReceiverServerstop.java ParitySenderClientstop.java
+PS C:\Users\Arpita Nath\Desktop\j> java ParityReceiverServerstop
+Server is running on port 6789
+Client connected...
+Received Data: 01010110
+Data is correct. Sending ACK.
+
+
+PS C:\Users\Arpita Nath\Desktop\j> java ParitySenderClientstop
+Connected to server on port 6789
+Enter binary data: 101011
+Sending Data with Parity: 01010110
+ACK received for sequence: 0
+PS C:\Users\Arpita Nath\Desktop\j> 
+------------------------------------------------------------------------------------------------------------------------------------------------------------
